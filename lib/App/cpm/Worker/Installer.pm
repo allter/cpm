@@ -126,16 +126,22 @@ sub _fetch_git {
         DIR => $self->menlo->{base},
     );
     $self->menlo->mask_output( diag_progress => "Cloning $uri" );
-    $self->menlo->run_command([ 'git', 'clone', $uri, $dir ]);
-
-    unless (-e "$dir/.git") {
+    my ($ok, $res) = $self->menlo->run_command([ 'git', 'clone', $uri, $dir ]);
+    if (!$ok || !-e "$dir/.git") {
         $self->menlo->diag_fail("Failed cloning git repository $uri", 1);
+        if ($res->{stdout}) {
+            $self->menlo->diag_fail($_, 1) foreach map { "  $_" } split /\r?\n/, $res->{stdout};
+        }
         return;
     }
     my $guard = pushd $dir;
     if ($ref) {
-        unless ($self->menlo->run_command([ 'git', 'checkout', $ref ])) {
+        ($ok, $res) = $self->menlo->run_command([ 'git', 'checkout', $ref ]);
+        unless ($ok) {
             $self->menlo->diag_fail("Failed to checkout '$ref' in git repository $uri\n");
+            if ($res->{stdout}) {
+                $self->menlo->diag_fail($_, 1) foreach map { "  $_" } split /\r?\n/, $res->{stdout};
+            }
             return;
         }
     }

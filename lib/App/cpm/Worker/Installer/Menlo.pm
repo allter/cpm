@@ -55,7 +55,6 @@ sub log {
 sub run_command {
     my ($self, $cmd) = @_;
     $self->run_timeout($cmd, 0);
-
 }
 
 sub run_timeout {
@@ -66,7 +65,7 @@ sub run_timeout {
 
     my $runner = Command::Runner->new(
         command => $cmd,
-        keep => 0,
+        keep => 1,
         redirect => 1,
         timeout => $timeout,
         stdout => sub { $self->log(@_) },
@@ -76,8 +75,8 @@ sub run_timeout {
         $self->diag_fail("Timed out (> ${timeout}s).");
         return;
     }
-    my $result = $res->{result};
-    ref $cmd eq 'CODE' ? $result : $result == 0;
+    my $result = ref $cmd eq 'CODE' ? $res->{result} : $res->{result} == 0;
+    return wantarray ? ($result, $res) : $result;
 }
 
 1;

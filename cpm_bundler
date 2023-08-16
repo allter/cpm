@@ -38,7 +38,7 @@ Getopt::Long::GetOptions(
     "cpm_path=s" => \my $path_cpm,
     "dev_cpm" => \my $dev_cpm,
     "build_dir=s" => \$build_dir,
-    "no_delete" => \my $no_delete,
+    "no-delete" => \my $no_delete,
     (map { $with_option->($_) } keys %with_defaults),
 ) or exit 1;
 

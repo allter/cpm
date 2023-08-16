@@ -38,6 +38,7 @@ Getopt::Long::GetOptions(
     "cpm_path=s" => \my $path_cpm,
     "dev_cpm" => \my $dev_cpm,
     "build_dir=s" => \$build_dir,
+    "no_delete" => \my $no_delete,
     (map { $with_option->($_) } keys %with_defaults),
 ) or exit 1;
 
@@ -107,7 +108,7 @@ my $resolver = '';
 
 if ($restore) {
     die "Unexists cpanfile.snapshot" unless -f "cpanfile.snapshot";
-    remove_tree 'local';
+    remove_tree 'local' unless $no_delete;
     push @params, ("--resolver", 'snapshot')
 }
 
@@ -127,19 +128,19 @@ die "cpm return code not 0" if cpm "Build devel package", "install", "--with-dev
 chdir $dir;
 if ($update or $install) {
     if ($update) {
-        #remove_tree 'local';
+        #remove_tree 'local' unless $no_delete;
         #die "cpm return code not 0" if cpm "Build project", 'install', "--resolver", 'snapshot';
     }
     die "cpm return code not 0" if cpm "Build project", @params, split(',', $update) , split(',', $install);
     gen_snapshot;
     if ($update) {
-        remove_tree 'local';
+        remove_tree 'local' unless $no_delete;
         die "cpm return code not 0" if cpm "Build project", 'install', "--resolver", 'snapshot';
     }
 } else {
     if ($restore) {
         warn "Clean local";
-        remove_tree 'local';
+        remove_tree 'local' unless $no_delete;
     }
     die "cpm return code not 0" if cpm "Build project", @params;
     gen_snapshot unless $restore;

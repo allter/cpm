@@ -12,6 +12,22 @@ use JSON::PP;
 my $bin_cpm = '/usr/bin/cpm';
 my $build_dir = "build/";
 
+my %with_defaults = (
+    requires => 1,
+    recommends => 0,
+    suggests => 0,
+    configure => 0,
+    build => 1,
+    test => 1,
+    runtime => 1,
+    develop => 0,
+);
+my %with = %with_defaults;
+my $with_option = sub {
+    my $n = shift;
+    ("with-$n", \$with{$n}, "without-$n", sub { $with{$n} = 0 });
+};
+
 Getopt::Long::GetOptions(
     "f|force" => \my $force,
     "t|restore" => \my $restore,
@@ -22,6 +38,7 @@ Getopt::Long::GetOptions(
     "cpm_path=s" => \my $path_cpm,
     "dev_cpm" => \my $dev_cpm,
     "build_dir=s" => \$build_dir,
+    (map { $with_option->($_) } keys %with_defaults),
 ) or exit 1;
 
 die "Config file `$config_json` does not exists" if $config_json && !-f $config_json;
@@ -69,7 +86,7 @@ CPANFILE
 
 sub cpm {
     my $prefix = shift;
-    my $cmd = join(" ", $ENV{_}, join(" ", map {"-I $_"} @$lib_cpm), $bin_cpm, join (' ', @_));
+    my $cmd = join(" ", $^X, join(" ", map {"-I $_"} @$lib_cpm), $bin_cpm, join (' ', @_));
     warn "\e[1;31m$prefix\e[m " . $cmd . "\n";
     return system($cmd);
 }
@@ -84,6 +101,7 @@ sub gen_snapshot {
 }
 
 my @params = ("install");
+push @params, map { $with{$_} ? "--with-$_" : "--without-$_" } grep { $with{$_} != $with_defaults{$_} } keys %with_defaults;
 
 my $resolver = '';
 
@@ -126,4 +144,3 @@ if ($update or $install) {
     die "cpm return code not 0" if cpm "Build project", @params;
     gen_snapshot unless $restore;
 }
-

@@ -28,7 +28,9 @@ my $with_option = sub {
     ("with-$n", \$with{$n}, "without-$n", sub { $with{$n} = 0 });
 };
 
+Getopt::Long::Configure(qw(pass_through)); # This makes cpm_bundler "a frontend to cpm". All options for cpm may be specified, but not all are OK with cpm_bundler/
 Getopt::Long::GetOptions(
+    "L|local-lib-contained=s" => \my $local_lib,
     "f|force" => \my $force,
     "t|restore" => \my $restore,
     "update=s" => \my $update,
@@ -41,6 +43,9 @@ Getopt::Long::GetOptions(
     "no-delete" => \my $no_delete,
     (map { $with_option->($_) } keys %with_defaults),
 ) or exit 1;
+my @cpm_options= @ARGV;
+
+$local_lib = 'local' unless +$local_lib;
 
 die "Config file `$config_json` does not exists" if $config_json && !-f $config_json;
 $config_json ||= ".cpm_bundler.json";
@@ -60,16 +65,17 @@ $bin_cpm = $path_cpm . '/cpm' if $path_cpm;
 die "dev_cpm required cpm_path option" if $dev_cpm && ! $path_cpm;
 die "cpm `$bin_cpm` not found" unless -f $bin_cpm;
 
-my $lib_cpm = [$build_dir . '/local/lib/perl5'];
-eval "use lib '$build_dir/local/lib/perl5';";
-if ($dev_cpm && $path_cpm) {
-    push @$lib_cpm, ($path_cpm . '/../lib', $path_cpm . '/../local/lib/perl5');
-}
+my $lib_cpm = [];
+if ($dev_cpm) {
+    $lib_cpm = [$build_dir . '/local/lib/perl5'];
+    eval "use lib '$build_dir/local/lib/perl5';"; # Seems to be useless
 
-make_path($build_dir) unless -d $build_dir;
-unless (-f $build_dir . '/cpanfile') {
-    open(my $cpanfile, '>', $build_dir . '/cpanfile') or die "Can't create cpanfile for builder: $!";
-    print {$cpanfile} <<CPANFILE;
+    push @$lib_cpm, ($path_cpm . '/../lib', $path_cpm . '/../local/lib/perl5');
+
+    make_path($build_dir) unless -d $build_dir;
+    unless (-f $build_dir . '/cpanfile') {
+        open(my $cpanfile, '>', $build_dir . '/cpanfile') or die "Can't create cpanfile for builder: $!";
+        print {$cpanfile} <<CPANFILE;
 on develop => sub {
     requires 'IO::Uncompress::Gunzip', '0';
     requires 'Carton', '1.0.34_1', git => 'https://github.com/Nikolo/carton.git'; #https://github.com/perl-carton/carton/pull/263
@@ -82,7 +88,8 @@ on develop => sub {
     requires 'JSON::XS', '0';
 };
 CPANFILE
-    close($cpanfile);
+        close($cpanfile);
+    }
 }
 
 sub cpm {
@@ -94,10 +101,13 @@ sub cpm {
 
 sub gen_snapshot {
     warn "\e[1;31mGenerate snapshot\e[m\n";
+    our $build_lib = $build_dir . '/local/lib/perl5';
+    eval q{use lib ( $build_lib ); 1} or die "Error in 'use lib': $@";
+    undef $build_lib;
     require 'Carton/Snapshot.pm';
     my $snapshot = Carton::Snapshot->new(path => "cpanfile.snapshot");
     my $no_exclude = CPAN::Meta::Requirements->new;
-    $snapshot->find_installs("local", $no_exclude);
+    $snapshot->find_installs($local_lib, $no_exclude);
     $snapshot->save;
 }
 
@@ -108,7 +118,7 @@ my $resolver = '';
 
 if ($restore) {
     die "Unexists cpanfile.snapshot" unless -f "cpanfile.snapshot";
-    remove_tree 'local' unless $no_delete;
+    remove_tree $local_lib unless $no_delete;
     push @params, ("--resolver", 'snapshot')
 }
 
@@ -121,11 +131,17 @@ if ($rebuild){
     push @params, "--no-prebuilt", "--reinstall";
 }
 
-my $dir = getcwd;
+if (+$dev_cpm) {
+    my $dir = getcwd;
+    chdir $build_dir;
+    die "cpm return code not 0" if cpm "Build devel package", "install", "--with-develop";
+    chdir $dir;
+}
 
-chdir $build_dir;
-die "cpm return code not 0" if cpm "Build devel package", "install", "--with-develop";
-chdir $dir;
+push @params, '--local-lib-contained', $local_lib if +$local_lib;
+
+push @params, @cpm_options;
+
 if ($update or $install) {
     if ($update) {
         #remove_tree 'local' unless $no_delete;
@@ -134,13 +150,13 @@ if ($update or $install) {
     die "cpm return code not 0" if cpm "Build project", @params, split(',', $update) , split(',', $install);
     gen_snapshot;
     if ($update) {
-        remove_tree 'local' unless $no_delete;
+        remove_tree $local_lib unless $no_delete;
         die "cpm return code not 0" if cpm "Build project", 'install', "--resolver", 'snapshot';
     }
 } else {
     if ($restore) {
         warn "Clean local";
-        remove_tree 'local' unless $no_delete;
+        remove_tree $local_lib unless $no_delete;
     }
     die "cpm return code not 0" if cpm "Build project", @params;
     gen_snapshot unless $restore;

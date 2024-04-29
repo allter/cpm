@@ -41,6 +41,7 @@ Getopt::Long::GetOptions(
     "dev_cpm" => \my $dev_cpm,
     "build_dir=s" => \$build_dir,
     "no-delete" => \my $no_delete,
+    "no-install-build-local" => \my $no_install_build_local,
     (map { $with_option->($_) } keys %with_defaults),
 ) or exit 1;
 my @cpm_options= @ARGV;
@@ -129,7 +130,7 @@ if ($rebuild){
     push @params, "--no-prebuilt", "--reinstall";
 }
 
-if (+$dev_cpm) {
+if (+$dev_cpm && !$no_install_build_local) {
     my $dir = getcwd;
     chdir $build_dir;
     die "cpm return code not 0" if cpm "Build devel package", "install", "--with-develop";

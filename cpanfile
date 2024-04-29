@@ -1,5 +1,6 @@
 requires 'perl', '5.008001';
 
+requires 'TAP::Harness::Env';
 requires 'CPAN::Common::Index';
 requires 'CPAN::DistnameInfo';
 requires 'CPAN::Meta';

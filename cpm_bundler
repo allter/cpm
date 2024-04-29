@@ -68,8 +68,6 @@ die "cpm `$bin_cpm` not found" unless -f $bin_cpm;
 my $lib_cpm = [];
 if ($dev_cpm) {
     $lib_cpm = [$build_dir . '/local/lib/perl5'];
-    eval "use lib '$build_dir/local/lib/perl5';"; # Seems to be useless
-
     push @$lib_cpm, ($path_cpm . '/../lib', $path_cpm . '/../local/lib/perl5');
 
     make_path($build_dir) unless -d $build_dir;
@@ -94,9 +92,9 @@ CPANFILE
 
 sub cpm {
     my $prefix = shift;
-    my $cmd = join(" ", $^X, join(" ", map {"-I $_"} @$lib_cpm), $bin_cpm, join (' ', @_));
-    warn "\e[1;31m$prefix\e[m " . $cmd . "\n";
-    return system($cmd);
+    my @cmd = ($^X, (map { ('-I', $_ ); } @$lib_cpm), $bin_cpm, @_);
+    warn "\e[1;31m$prefix\e[m " . encode_json(\@cmd) . "\n";
+    return system(@cmd);
 }
 
 sub gen_snapshot {
